@@ -1,0 +1,151 @@
+import nibabel as nib
+
+from deepbrain import Extractor
+
+import numpy as np
+
+import os
+
+import tensorflow as tf
+
+import multiprocessing as mp
+
+import time
+
+import copy
+
+ 
+
+def proc_files(Inputfile,Outputfile):
+
+    print(os.path.dirname(Outputfile).split("/")[-3])
+
+    print("Brain extraction being carried out on " +os.path.dirname(Outputfile).split("/")[-3])
+
+    img = nib.load(Inputfile).get_fdata()
+
+ 
+
+    #`prob` is probability of being brain tissue for each of the voxels
+
+    #Load deepbrain extractor and run
+
+    ext = Extractor()
+
+    prob = ext.run(img)
+
+    mask = prob > 0.5
+
+    op=img
+
+    op[mask==False]=0
+
+   
+
+    opimg = nib.Nifti1Image(op, np.eye(4))
+
+   # write image
+
+    if not os.path.exists(os.path.dirname(Outputfile)):
+
+        os.makedirs(os.path.dirname(Outputfile),exist_ok=True)
+
+    print("Output file  :" +Outputfile)
+
+    opimg.to_filename(Outputfile)
+
+ 
+
+   
+
+ 
+
+def main():
+
+   
+
+    #Read input flags
+
+    FLAGS = tf.app.flags.FLAGS
+
+    tf.app.flags.DEFINE_string('i', '',"Base folder containing input data...")
+
+    tf.app.flags.DEFINE_string('o', '',"Folder for output data...")
+
+    Mainfold=FLAGS.i
+
+    Outfold=FLAGS.o
+
+    print("Inputfolder : "+Mainfold)
+
+    print("OutputFolder : "+Outfold)   
+
+    
+
+    #Get files in input folder recursively and their counterpart output names
+
+    fold=os.listdir(Mainfold)   
+
+    fold=[i for i in fold if os.path.exists(Mainfold+'/'+ i +'/'+'anat/tra/')]
+
+    Inputpfx=[Mainfold+'/'+ i +'/'+'anat/tra/' for i in fold]
+
+    Outputpfx=[Outfold+'/'+ i +'/'+'anat/tra/db_' for i in fold]   
+
+    
+
+    #Get input files
+
+    files=[os.listdir(i) for i in Inputpfx]
+
+    Inputfileslist=copy.deepcopy(files)
+
+    Outputfileslist=copy.deepcopy(files)
+
+    for (i,v) in enumerate(Inputpfx): #make file names fullpath
+
+        for (i2,j) in enumerate(files[i]):
+
+            Inputfileslist[i][i2]=Inputpfx[i]+j
+
+            Outputfileslist[i][i2]=Outputpfx[i]+j            
+
+        
+
+     
+
+    Inputfileslist=[item for sublist in  Inputfileslist for item in sublist]
+
+    Outputfileslist=[item for sublist in  Outputfileslist for item in sublist]
+
+   
+
+    #Send files for processing
+
+    pool = mp.Pool(mp.cpu_count())           # Create a multiprocessing Pool
+
+    pool.starmap(proc_files, zip(Inputfileslist,Outputfileslist))     # process data_inputs iterable with pool
+
+   
+
+    
+
+    
+
+  
+
+if __name__ == "__main__":
+
+    start_time = time.time()
+
+    print("Start time : " +str(start_time))
+
+    main()   
+
+    print("End_time : "+str(time.time()))
+
+    print("Elapsed time : " +str(time.time() - start_time))
+
+   
+
+    
